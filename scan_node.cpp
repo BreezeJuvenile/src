@@ -124,42 +124,11 @@ void LidarProcessor::LidarCallback(const sensor_msgs::msg::LaserScan::SharedPtr 
     }
     if (zhaodao_R && flag == 0 )
     {
-        // 动态角速度调整，基准为 90，＞90 左转，＜90 右转
-        float max_angular_z = 130;  // 最大左转角速度，避免过大
-        float min_angular_z = 90;   // 最小角速度为 90，表示直行
-
-        float max_distance = 80.0;  // 设置一个最大距离阈值
-        float min_distance = 10.0;  // 最小距离阈值（太近时需要急转弯）
-
-        // 动态计算角速度：根据右侧最小距离进行插值计算，距离越近，角速度越大
-        float angular_z = max_angular_z - ((zuixiao_R - min_distance) / (max_distance - min_distance)) * (max_angular_z - min_angular_z);
-        
-        // 限制角速度在合理范围内
-        if (angular_z > max_angular_z) angular_z = max_angular_z;
-        if (angular_z < min_angular_z) angular_z = min_angular_z;
-
-        // 动态线速度调整，基准为 1500 静止，1530 为正常前进速度
-        float max_linear_x = 1530;   // 最大线速度
-        float min_linear_x = 1500;   // 最小线速度，1500 表示静止
-
-        // 动态计算线速度：障碍物越近，线速度越低
-        float linear_x = max_linear_x - ((zuixiao_R - min_distance) / (max_distance - min_distance)) * (max_linear_x - min_linear_x);
-        
-        // 限制线速度在合理范围内，不能小于1500
-        if (linear_x > max_linear_x) linear_x = max_linear_x;
-        if (linear_x < min_linear_x) linear_x = min_linear_x;
-
-        // 设置计算出的动态速度值
-        cmd_vel.angular.z = angular_z;
-        cmd_vel.linear.x = linear_x;
-
+        cmd_vel.linear.x = speed;
+        cmd_vel.angular.z = 113;
         vel_pub->publish(cmd_vel);
-
-        // 打印调试信息，显示动态角速度和线速度
-        RCLCPP_INFO(this->get_logger(), "右角度：%.1f  右距离：%.1f 动态角速度：%.1f 动态线速度：%.1f", 
-                    jiaodu_R * 0.36, zuixiao_R, angular_z, linear_x);
+        RCLCPP_INFO(this->get_logger(), "右角度：%.1f  右距离：%.1f", jiaodu_R * 0.36, zuixiao_R);
     }
-
     
 }
 
