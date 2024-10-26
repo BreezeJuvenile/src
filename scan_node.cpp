@@ -91,26 +91,52 @@ void LidarProcessor::LidarCallback(const sensor_msgs::msg::LaserScan::SharedPtr 
             }
         }
     }
+    // 修改左侧避障部分，使其也使用动态调整算法
     if (zhaodao_L)
     {
-        sina = sin(jiaodu_L * 0.36 * Pi / 180);
-        dajiao = (zuixiao_L * sina);
-        if (dajiao < -50) { dajiao = -50; } // 舵机打角限幅
-        if (dajiao > 50) { dajiao = 50; }
+        // 动态角速度调整，基准为 90，＞90 左转，＜90 右转
+        float max_angular_z = 130;  // 最大左转角速度，避免过大
+        float min_angular_z = 90;   // 最小角速度为 90，表示直行
+
+        float max_distance = 80.0;  // 设置一个最大距离阈值
+        float min_distance = 10.0;  // 最小距离阈值（太近时需要急转弯）
+
+        // 动态计算角速度：根据左侧最小距离进行插值计算，距离越近，角速度越大
+        float angular_z = max_angular_z - ((zuixiao_L - min_distance) / (max_distance - min_distance)) * (max_angular_z - min_angular_z);
+        
+        // 限制角速度在合理范围内
+        if (angular_z > max_angular_z) angular_z = max_angular_z;
+        if (angular_z < min_angular_z) angular_z = min_angular_z;
+
+        // 动态线速度调整，基准为 1500 静止，1530 为正常前进速度
+        float max_linear_x = 1530;   // 最大线速度
+        float min_linear_x = 1500;   // 最小线速度，1500 表示静止
+
+        // 动态计算线速度：障碍物越近，线速度越低
+        float linear_x = max_linear_x - ((zuixiao_L - min_distance) / (max_distance - min_distance)) * (max_linear_x - min_linear_x);
+        
+        // 限制线速度在合理范围内，不能小于1500
+        if (linear_x > max_linear_x) linear_x = max_linear_x;
+        if (linear_x < min_linear_x) linear_x = min_linear_x;
+        // 锥桶个数识别
         if ((oldjiaodu_L - jiaodu_L) > 25)
         {
             ztjs_L = ztjs_L + 1;
         }
         oldjiaodu_L = jiaodu_L;
         flag = 1;
-        RCLCPP_INFO(this->get_logger(), "左角度：%.1f 左距离：%.1f 打角：%d 速度：%d ztjs:  %d", jiaodu_L * 0.36, zuixiao_L, static_cast<int>(dajiao), speed, ztjs_L);
+
+        // 打印调试信息，显示动态角速度和线速度以及锥桶个数
+        RCLCPP_INFO(this->get_logger(), "左角度：%.1f 左距离：%.1f 动态角速度：%.1f 动态线速度：%.1f ztjs:  %d", 
+                    jiaodu_L * 0.36, zuixiao_L, angular_z, linear_x, ztjs_L);
     }
+
     if (ztjs_L > 60)
             ch = 3;
     if (ch != 3 && zhaodao_L)
     {
-        cmd_vel.linear.x = speed;
-        cmd_vel.angular.z = dajiao - 50 + 80;
+        cmd_vel.linear.x = angular_z;
+        cmd_vel.angular.z = linear_x;
         vel_pub->publish(cmd_vel);
         flag = 1;
         RCLCPP_INFO(this->get_logger(), "正在前进");
